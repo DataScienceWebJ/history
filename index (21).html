@@ -1,0 +1,576 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History Quest: Time Travel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: url('https://www.transparenttextures.com/patterns/old-map.png') repeat, linear-gradient(to bottom, #f5e6c6, #d9c8a0);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            color: #333;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Merriweather', serif;
+            color: #4a2c0b;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+            margin-bottom: 1rem;
+            animation: fadeIn 1s ease-in;
+        }
+
+        .quiz-container {
+            background: #fffdf5 url('https://www.transparenttextures.com/patterns/paper.png');
+            border: 2px solid #8b6f47;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 36rem;
+            position: relative;
+            animation: parchmentScroll 0.8s ease-out;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0d8b0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .progress {
+            height: 100%;
+            background: #d4a017;
+            transition: width 0.3s ease;
+        }
+
+        .time-travel-meter {
+            width: 100%;
+            max-width: 200px;
+            height: 120px;
+            background: url('https://www.transparenttextures.com/patterns/sand.png');
+            border: 2px solid #8b6f47;
+            border-radius: 20px;
+            position: relative;
+            margin: 1rem auto;
+            overflow: hidden;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #4a2c0b;
+        }
+
+        .time-travel-meter::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #d4a017 0%, #d4a017 var(--meter-level), transparent var(--meter-level));
+            transition: all 0.5s ease;
+        }
+
+        .time-travel-meter span {
+            position: relative;
+            z-index: 1;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .option {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border: 1px solid #8b6f47;
+            border-radius: 8px;
+            background: #f8f1e3;
+            color: #4a2c0b;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        .option:hover {
+            transform: translateX(5px);
+            background: #e6d9b8;
+        }
+
+        .option.selected {
+            background: #d4a017;
+            color: white;
+        }
+
+        .option i {
+            margin-right: 0.5rem;
+        }
+
+        .submit-btn, .restart-btn {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            background: #8b6f47;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        .submit-btn:hover:not(:disabled), .restart-btn:hover {
+            background: #6f5535;
+        }
+
+        .submit-btn:disabled {
+            background: #b8b0a0;
+            cursor: not-allowed;
+        }
+
+        .feedback {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 1.125rem;
+            opacity: 0;
+            color: #4a2c0b;
+        }
+
+        .stats-container {
+            width: 100%;
+            max-width: 36rem;
+            background: #fffdf5;
+            border: 2px solid #8b6f47;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            margin-top: 1rem;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .badge {
+            background: #d4a017;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            animation: popIn 0.3s ease;
+        }
+
+        .leaderboard {
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        .leaderboard li {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #f8f1e3;
+            margin: 0.25rem 0;
+            border-radius: 8px;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(212, 160, 23, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        @keyframes parchmentScroll {
+            0% { transform: scaleY(0); opacity: 0; }
+            50% { transform: scaleY(1.1); }
+            100% { transform: scaleY(1); opacity: 1; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
+        }
+
+        .typewriter {
+            overflow: hidden;
+            border-right: 0.15em solid #4a2c0b;
+            white-space: nowrap;
+            margin: 0 auto;
+            animation: typing 2s steps(40, end), blink-caret 0.5s step-end infinite;
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes blink-caret {
+            from, to { border-color: transparent; }
+            50% { border-color: #4a2c0b; }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .quiz-container, .stats-container {
+                padding: 1rem;
+            }
+
+            .time-travel-meter {
+                max-width: 150px;
+                height: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>History Quest: Time Travel</h1>
+    <div class="quiz-container" id="quiz">
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+        <div class="time-travel-meter" id="timeTravelMeter">
+            <span id="era">Ancient Era</span>
+        </div>
+        <h2 id="question" class="typewriter"></h2>
+        <div id="options"></div>
+        <button class="submit-btn" id="submit" disabled>Submit</button>
+        <button class="restart-btn" id="restart" style="display: none;">Restart Quest</button>
+        <p class="feedback" id="feedback"></p>
+    </div>
+    <div class="stats-container">
+        <h3>Score: <span id="score">0</span></h3>
+        <h3>Badges: <div class="badges" id="badges">None</div></h3>
+        <h3>Leaderboard</h3>
+        <ul class="leaderboard" id="leaderboard"></ul>
+    </div>
+
+    <script>
+        const questions = [
+            { id: 1, difficulty: 1, type: "multiple", question: "When did the Battle of Waterloo take place?", options: ["1805", "1815", "1825", "1795"], correct: "1815" },
+            { id: 2, difficulty: 2, type: "truefalse", question: "The Magna Carta was signed in 1215.", correct: "True" },
+            { id: 3, difficulty: 1, type: "multiple", question: "Who was the first president of the United States?", options: ["Thomas Jefferson", "John Adams", "George Washington", "Benjamin Franklin"], correct: "George Washington" },
+            { id: 4, difficulty: 2, type: "truefalse", question: "The French Revolution began in 1789.", correct: "True" },
+            { id: 5, difficulty: 3, type: "multiple", question: "Which empire was ruled by Genghis Khan?", options: ["Ottoman Empire", "Mongol Empire", "Roman Empire", "Byzantine Empire"], correct: "Mongol Empire" },
+            { id: 6, difficulty: 1, type: "truefalse", question: "The Great Wall of China was built in the 19th century.", correct: "False" },
+            { id: 7, difficulty: 2, type: "multiple", question: "In which year did Christopher Columbus first reach the Americas?", options: ["1492", "1453", "1519", "1488"], correct: "1492" },
+            { id: 8, difficulty: 3, type: "truefalse", question: "The Roman Empire fell in 476 CE.", correct: "True" },
+            { id: 9, difficulty: 1, type: "multiple", question: "Which country was the first to grant women the right to vote?", options: ["United States", "New Zealand", "United Kingdom", "France"], correct: "New Zealand" },
+            { id: 10, difficulty: 2, type: "truefalse", question: "The Renaissance began in Italy.", correct: "True" },
+            { id: 11, difficulty: 3, type: "multiple", question: "Who was the leader of the Soviet Union during World War II?", options: ["Vladimir Lenin", "Joseph Stalin", "Leon Trotsky", "Nikita Khrushchev"], correct: "Joseph Stalin" },
+            { id: 12, difficulty: 1, type: "truefalse", question: "The Declaration of Independence was adopted in 1776.", correct: "True" },
+            { id: 13, difficulty: 2, type: "multiple", question: "Which ancient civilization built the pyramids of Giza?", options: ["Mesopotamians", "Mayans", "Egyptians", "Incas"], correct: "Egyptians" },
+            { id: 14, difficulty: 3, type: "truefalse", question: "The Black Death occurred in the 17th century.", correct: "False" },
+            { id: 15, difficulty: 1, type: "multiple", question: "What was the name of the ship that carried the Pilgrims to America in 1620?", options: ["Santa Maria", "Mayflower", "Nina", "Pinta"], correct: "Mayflower" },
+            { id: 16, difficulty: 2, type: "truefalse", question: "The Industrial Revolution began in Britain.", correct: "True" },
+            { id: 17, difficulty: 3, type: "multiple", question: "Which war was fought between 1914 and 1918?", options: ["World War I", "World War II", "Korean War", "Vietnam War"], correct: "World War I" },
+            { id: 18, difficulty: 1, type: "truefalse", question: "The Berlin Wall fell in 1989.", correct: "True" },
+            { id: 19, difficulty: 2, type: "multiple", question: "Who was the first Emperor of the Roman Empire?", options: ["Julius Caesar", "Augustus", "Nero", "Constantine"], correct: "Augustus" },
+            { id: 20, difficulty: 3, type: "truefalse", question: "The Crusades were fought in the 20th century.", correct: "False" },
+            { id: 21, difficulty: 1, type: "multiple", question: "Which explorer circumnavigated the globe first?", options: ["Christopher Columbus", "Vasco da Gama", "Ferdinand Magellan", "Marco Polo"], correct: "Ferdinand Magellan" },
+            { id: 22, difficulty: 2, type: "truefalse", question: "The American Civil War ended in 1865.", correct: "True" },
+            { id: 23, difficulty: 3, type: "multiple", question: "Which dynasty ruled China during the construction of the Forbidden City?", options: ["Tang", "Song", "Ming", "Qing"], correct: "Ming" },
+            { id: 24, difficulty: 1, type: "truefalse", question: "The Wright brothers made their first powered flight in 1903.", correct: "True" },
+            { id: 25, difficulty: 2, type: "multiple", question: "Which battle marked the end of Napoleon’s rule?", options: ["Battle of Trafalgar", "Battle of Austerlitz", "Battle of Waterloo", "Battle of Borodino"], correct: "Battle of Waterloo" },
+            { id: 26, difficulty: 3, type: "truefalse", question: "The Spanish Inquisition began in the 15th century.", correct: "True" },
+            { id: 27, difficulty: 1, type: "multiple", question: "Which country was unified in 1871 under Otto von Bismarck?", options: ["Italy", "Germany", "Austria", "Spain"], correct: "Germany" },
+            { id: 28, difficulty: 2, type: "truefalse", question: "The Cold War was a period of direct military conflict between the USA and USSR.", correct: "False" },
+            { id: 29, difficulty: 3, type: "multiple", question: "Who was the last pharaoh of Egypt?", options: ["Ramses II", "Tutankhamun", "Cleopatra", "Hatshepsut"], correct: "Cleopatra" },
+            { id: 30, difficulty: 1, type: "truefalse", question: "The United Nations was founded in 1945.", correct: "True" }
+        ];
+
+        let currentQuestion = 0;
+        let score = 0;
+        let difficulty = 1;
+        let badges = [];
+        let leaderboard = [];
+        let selectedAnswer = "";
+        let answeredQuestions = 0;
+        let currentEra = "Ancient Era";
+
+        const questionEl = document.getElementById("question");
+        const optionsEl = document.getElementById("options");
+        const submitBtn = document.getElementById("submit");
+        const restartBtn = document.getElementById("restart");
+        const feedbackEl = document.getElementById("feedback");
+        const scoreEl = document.getElementById("score");
+        const badgesEl = document.getElementById("badges");
+        const leaderboardEl = document.getElementById("leaderboard");
+        const progressEl = document.getElementById("progress");
+        const timeTravelMeterEl = document.getElementById("timeTravelMeter");
+        const eraEl = document.getElementById("era");
+
+        const correctSound = new Audio('https://www.soundjay.com/buttons/sounds/button-09.mp3');
+        const incorrectSound = new Audio('https://www.soundjay.com/buttons/sounds/button-10.mp3');
+        const eraSound = new Audio('https://www.soundjay.com/misc/sounds/magic-chime-02.mp3');
+
+        function createParticle(x, y) {
+            const particle = document.createElement("div");
+            particle.className = "particle";
+            particle.style.width = `${Math.random() * 10 + 5}px`;
+            particle.style.height = particle.style.width;
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+            document.body.appendChild(particle);
+            setTimeout(() => particle.remove(), 3000);
+        }
+
+        function loadQuestion() {
+            if (currentQuestion >= questions.length) {
+                questionEl.textContent = "Quest Completed!";
+                questionEl.classList.remove("typewriter");
+                optionsEl.innerHTML = "";
+                submitBtn.style.display = "none";
+                restartBtn.style.display = "block";
+                feedbackEl.textContent = `Final Score: ${score}`;
+                feedbackEl.style.opacity = 1;
+                return;
+            }
+
+            const q = questions[currentQuestion];
+            questionEl.textContent = q.question;
+            questionEl.classList.add("typewriter");
+            optionsEl.innerHTML = "";
+
+            const opts = q.type === "multiple" ? q.options : ["True", "False"];
+            opts.forEach(opt => {
+                const btn = document.createElement("button");
+                btn.className = "option";
+                btn.innerHTML = `<i class="fas fa-scroll"></i> ${opt}`;
+                btn.onclick = (e) => {
+                    selectedAnswer = opt;
+                    document.querySelectorAll(".option").forEach(b => b.classList.remove("selected"));
+                    btn.classList.add("selected");
+                    submitBtn.disabled = false;
+                    createParticle(e.clientX, e.clientY);
+                };
+                optionsEl.appendChild(btn);
+            });
+
+            submitBtn.disabled = true;
+            feedbackEl.textContent = "";
+            feedbackEl.style.opacity = 0;
+            updateProgress();
+            updateTimeTravelMeter();
+        }
+
+        function updateProgress() {
+            const progressPercent = ((answeredQuestions + 1) / questions.length) * 100;
+            progressEl.style.width = `${progressPercent}%`;
+        }
+
+        function updateTimeTravelMeter() {
+            const meterLevel = (answeredQuestions / questions.length) * 100;
+            timeTravelMeterEl.style.setProperty('--meter-level', `${meterLevel}%`);
+            let newEra = currentEra;
+            if (meterLevel >= 66) newEra = "Modern Era";
+            else if (meterLevel >= 33) newEra = "Medieval Era";
+            else newEra = "Ancient Era";
+            if (newEra !== currentEra) {
+                currentEra = newEra;
+                eraEl.textContent = currentEra;
+                eraSound.play();
+                if (!badges.includes(currentEra)) {
+                    badges.push(currentEra);
+                    sendToSlack(`Unlocked ${currentEra} badge!`);
+                    sendToTelegram(`Unlocked ${currentEra} badge!`);
+                }
+                timeTravelMeterEl.animate([
+                    { transform: "scale(1)" },
+                    { transform: "scale(1.1)" },
+                    { transform: "scale(1)" }
+                ], { duration: 300 });
+            }
+        }
+
+        function handleAnswer() {
+            const q = questions[currentQuestion];
+            let badgeEarned = false;
+
+            if (selectedAnswer === q.correct) {
+                score += difficulty * 10;
+                feedbackEl.textContent = "Correct!";
+                correctSound.play();
+                if (score >= 50 && !badges.includes("History Buff")) {
+                    badges.push("History Buff");
+                    badgeEarned = true;
+                    sendToSlack("Earned 'History Buff' badge!");
+                    sendToTelegram("Earned 'History Buff' badge!");
+                }
+                if (score >= 100 && !badges.includes("History Expert")) {
+                    badges.push("History Expert");
+                    badgeEarned = true;
+                    sendToSlack("Earned 'History Expert' badge!");
+                    sendToTelegram("Earned 'History Expert' badge!");
+                }
+                if (score >= 200 && !badges.includes("History Master")) {
+                    badges.push("History Master");
+                    badgeEarned = true;
+                    sendToSlack("Earned 'History Master' badge!");
+                    sendToTelegram("Earned 'History Master' badge!");
+                }
+                leaderboard.push({ name: "Player", score });
+            } else {
+                feedbackEl.textContent = "Incorrect. Try again!";
+                incorrectSound.play();
+            }
+
+            answeredQuestions++;
+            scoreEl.textContent = score;
+            badgesEl.innerHTML = badges.length ? badges.map(b => `<span class="badge">${b}</span>`).join("") : "None";
+            updateLeaderboard();
+
+            feedbackEl.animate([
+                { opacity: 0, transform: "translateY(-20px)" },
+                { opacity: 1, transform: "translateY(0)" }
+            ], { duration: 500 });
+
+            if (badgeEarned) {
+                badgesEl.animate([
+                    { transform: "scale(1)" },
+                    { transform: "scale(1.1)" },
+                    { transform: "scale(1)" }
+                ], { duration: 300 });
+            }
+
+            setTimeout(() => {
+                currentQuestion++;
+                difficulty = selectedAnswer === q.correct ? difficulty + 0.5 : Math.max(1, difficulty - 0.5);
+                selectedAnswer = "";
+                loadQuestion();
+            }, 1000);
+        }
+
+        function updateLeaderboard() {
+            leaderboard.sort((a, b) => b.score - a.score);
+            leaderboardEl.innerHTML = leaderboard.slice(0, 5).map(entry => `<li><span>${entry.name}</span><span>${entry.score}</span></li>`).join("");
+        }
+
+        function restartQuiz() {
+            currentQuestion = 0;
+            score = 0;
+            difficulty = 1;
+            badges = [];
+            leaderboard = [];
+            answeredQuestions = 0;
+            currentEra = "Ancient Era";
+            scoreEl.textContent = score;
+            badgesEl.innerHTML = "None";
+            leaderboardEl.innerHTML = "";
+            progressEl.style.width = "0%";
+            timeTravelMeterEl.style.setProperty('--meter-level', '0%');
+            eraEl.textContent = currentEra;
+            submitBtn.style.display = "block";
+            restartBtn.style.display = "none";
+            loadQuestion();
+        }
+
+        function sendToSlack(message) {
+            fetch('https://slack.com/api/chat.postMessage', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer YOUR_SLACK_TOKEN',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ channel: '#quiz-results', text: message })
+            }).catch(err => console.error('Slack error:', err));
+        }
+
+        function sendToTelegram(message) {
+            fetch(`https://api.telegram.org/botYOUR_BOT_TOKEN/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: 'YOUR_CHAT_ID', text: message })
+            }).catch(err => console.error('Telegram error:', err));
+        }
+
+        submitBtn.onclick = handleAnswer;
+        restartBtn.onclick = restartQuiz;
+        loadQuestion();
+    </script>
+</body>
+</html>
